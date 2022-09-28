@@ -37,6 +37,10 @@ def main():
                              "a single run (default: %(default)s)")
     parser.add_argument("--no-gear", action="store_true", default=False,
                         help="Don't download gear information")
+    parser.add_argument("--no-meta", action="store_true", default=False,
+                        help="Don't download meta information")                        
+    parser.add_argument("--runalyze", action="store_true", default=False,
+                        help="Push data to runalyze instance")     
     parser.add_argument("--no-photos", action="store_true", default=False,
                         help="Don't download the photos attached to activities")
     parser.add_argument("--dry-run", action="store_true", default=False,
@@ -58,6 +62,10 @@ def main():
     output_dir = os.path.expanduser(config['global'].get('output_dir', OUTPUT_DIR))
     email = config['user']['email']
     password = config['user']['password']
+
+    runalyze_host=config['runalyze']['host']
+    runalyze_user=config['runalyze']['username']
+    runalyze_pass=config['runalyze']['password']
 
     # Reduce logspam
     logging.getLogger("stravalib.model").setLevel(logging.INFO)
@@ -97,9 +105,14 @@ def main():
     else:
         __log__.info("Backing up '%s' to '%s'", email, output_dir)
 
-    sb = StravaBackup(access_token, email, password, output_dir)
+    if args.runalyze:
+        __log__.info("Runalyze push activated for '%s@%s'", runalyze_user, runalyze_host)
+    else:
+        __log__.info("Runalyze push not enabled, use --runalyze flag to activate")
+
+    sb = StravaBackup(access_token, email, password, output_dir, runalyze_host, runalyze_user, runalyze_pass)
     return sb.run_backup(
-        limit=args.limit, gear=not args.no_gear, photos=not args.no_photos,
+        limit=args.limit, gear=not args.no_gear, photos=not args.no_photos, meta=not args.no_meta, runalyze=args.runalyze,
         dry_run=args.dry_run
     )
 

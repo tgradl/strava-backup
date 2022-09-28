@@ -15,6 +15,8 @@ from units.quantity import Quantity
 
 from stravaweblib import WebClient, FrameType, DataFormat
 
+from requests.auth import HTTPBasicAuth
+
 __all__ = ["StravaBackup"]
 __log__ = logging.getLogger(__name__)
 
@@ -92,8 +94,11 @@ def json_dump(*args, **kwargs):
 class StravaBackup:
     """Download your data from Strava"""
 
-    def __init__(self, access_token, email, password, out_dir):
+    def __init__(self, access_token, email, password, out_dir, runalyze_host, runalyze_user, runalyze_pass):
         self.out_dir = out_dir
+        self.runalyze_host = runalyze_host
+        self.runalyze_user = runalyze_user
+        self.runalyze_pass = runalyze_pass
 
         # Will attempt to log in using the username/password
         self.client = WebClient(access_token=access_token, email=email,
@@ -257,7 +262,17 @@ class StravaBackup:
                         if chunk:
                             f.write(chunk)
 
-    def backup_activities(self, *, limit=None, photos=True, dry_run=False):
+    def push_activity_to_runalyze(self, path):     
+        url = self.runalyze_host + "/api/import/activity"
+        r = requests.post(url, files={'file': open(path, 'rb')}, headers={'Accept-Language': 'de,en'}, auth=HTTPBasicAuth(self.runalyze_user, self.runalyze_pass), verify = False)
+
+        if r.status_code>=400:
+            __log__.warn("Upload to runalyze user '%s' failed with code %s", self.runalyze_user, r.status_code)
+        else:
+            __log__.info("Upload to runalyze user '%s' succeeded (%s)", self.runalyze_user, r.status_code)
+        
+
+    def backup_activities(self, *, limit=None, photos=True, dry_run=False, meta=True, runalyze=False):
         count = 0
         for a in self._activities():
 
@@ -274,11 +289,14 @@ class StravaBackup:
             if dry_run:
                 if not a.manual and not have_data:
                     __log__.info("Would download activity %s", a)
-                elif not have_meta:
+                elif meta and not have_meta:
                     __log__.info("Would download metadata for activity %s", a)
 
                 if photos and a.total_photo_count:
                     __log__.info("Would download %d photo(s) from activity %s", a.total_photo_count, a)
+
+                if runalyze:
+                    __log__.info("Would push activity %s to runalyze: '%s@%s", a, self.runalyze_user, self.runalyze_host)
 
                 continue
 
@@ -289,7 +307,7 @@ class StravaBackup:
                 __log__.info("Downloading %d photo(s) from activity %s", a.total_photo_count, a)
                 self.backup_photos(a.id, photo_data)
 
-            if not have_meta:
+            if meta and not have_meta:
                 with open(self._data_path(a), 'w') as f:
                     json_dump(a, f)
 
@@ -305,13 +323,14 @@ class StravaBackup:
                     for chunk in data.content:
                         if chunk:
                             f.write(chunk)
+                    if runalyze:
+                        self.push_activity_to_runalyze(self._data_path(a, ext=ext))
 
-    def run_backup(self, *, limit=None, gear=True, photos=True, dry_run=False):
-
+    def run_backup(self, *, limit=None, gear=True, photos=True, dry_run=False, meta=True, runalyze=False):
         if not dry_run:
             self._ensure_output_dirs(gear=gear, photos=photos)
 
         if gear:
             self.backup_gear(dry_run=dry_run)
 
-        self.backup_activities(limit=limit, photos=photos, dry_run=dry_run)
+        self.backup_activities(limit=limit, photos=photos, dry_run=dry_run, meta=meta, runalyze=runalyze)
