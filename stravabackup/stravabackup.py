@@ -264,7 +264,7 @@ class StravaBackup:
 
     def push_activity_to_runalyze(self, path):     
         url = self.runalyze_host + "/api/import/activity"
-        r = requests.post(url, files={'file': open(path, 'rb')}, headers={'Accept-Language': 'de,en'}, auth=HTTPBasicAuth(self.runalyze_user, self.runalyze_pass), verify = False)
+        r = requests.post(url, files={'file': open(path, 'rb')}, headers={'Accept-Language': 'de,en'}, auth=HTTPBasicAuth(self.runalyze_user, self.runalyze_pass))
 
         if r.status_code>=400:
             __log__.warn("Upload to runalyze user '%s' failed with code %s", self.runalyze_user, r.status_code)
